@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Realistic Cake - Grand Finale Edition</title>
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+    <style>
+        body {
+            background-color: #001f3f; 
+            margin: 0;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            overflow: hidden;
+            font-family: "Times New Roman", Times, serif;
+        }
+
+        #instruction {
+            color: white;
+            cursor: pointer;
+            border: 2px solid #fff176;
+            padding: 15px 30px;
+            border-radius: 50px;
+            margin-bottom: 20px;
+            z-index: 100;
+            background: rgba(0,0,0,0.2);
+            transition: 0.3s;
+        }
+        #instruction:hover { background: white; color: #001f3f; }
+
+        /* Cake Structure */
+        .cake-stage {
+            position: relative;
+            width: 300px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .layer {
+            border-radius: 15px 15px 5px 5px;
+            box-shadow: inset 0 -5px 10px rgba(0,0,0,0.2), 0 5px 15px rgba(0,0,0,0.3);
+            transform: translateY(-1000px);
+            transition: transform 1s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+
+        .bottom-layer { width: 250px; height: 80px; background: #5d4037; z-index: 1; border-bottom: 8px solid #4e342e; }
+        .middle-layer { width: 200px; height: 70px; background: #f06292; z-index: 2; border-bottom: 8px solid #e91e63; }
+        .top-layer    { width: 150px; height: 60px; background: #fff176; z-index: 3; border-bottom: 8px solid #fbc02d; text-align: center; }
+
+        .cake-text {
+            font-size: 14px;
+            color: #d84315;
+            font-weight: bold;
+            line-height: 60px;
+            opacity: 0;
+            transition: opacity 0.5s 1.5s;
+        }
+
+        .active .bottom-layer { transform: translateY(0); transition-delay: 0.2s; }
+        .active .middle-layer { transform: translateY(-10px); transition-delay: 0.7s; }
+        .active .top-layer    { transform: translateY(-20px); transition-delay: 1.2s; }
+        .active .cake-text    { opacity: 1; }
+
+        /* Candles & Flames */
+        .candles-row {
+            display: flex;
+            justify-content: space-around;
+            width: 80px;
+            position: absolute;
+            top: -55px;
+            z-index: 10;
+        }
+
+        .candle {
+            width: 8px;
+            height: 35px;
+            background: linear-gradient(to bottom, #fff, #ffcdd2);
+            position: relative;
+            opacity: 0;
+            transition: opacity 0.5s 2s;
+        }
+
+        .active .candle { opacity: 1; }
+
+        .flame {
+            position: absolute;
+            top: -15px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 10px;
+            height: 18px;
+            background: orange;
+            border-radius: 50% 50% 20% 20%;
+            box-shadow: 0 0 10px gold;
+            animation: flicker 0.1s infinite alternate;
+            visibility: hidden;
+        }
+
+        .flame.show { visibility: visible; }
+        @keyframes flicker { from { transform: translateX(-50%) scale(1); } to { transform: translateX(-50%) scale(1.1); } }
+
+        /* Lyrics Styling */
+        .lyrics-box { text-align: center; color: white; margin-top: 40px; min-height: 120px; }
+        .lyric-line { 
+            font-family: "Times New Roman", Times, serif;
+            font-size: 14pt;
+            opacity: 0.1;
+            transition: 0.6s;
+            margin: 10px 0;
+        }
+        .lyric-line.active { opacity: 1; transform: scale(1.2); text-shadow: 0 0 15px white; font-weight: bold; }
+        .hidden { display: none; }
+    </style>
+</head>
+<body>
+
+    <h2 id="instruction">🎂 Click for a Grand Surprise 🎂</h2>
+
+    <div class="cake-stage" id="cakeStage">
+        <div class="candles-row">
+            <div class="candle"><div class="flame" id="f1"></div></div>
+            <div class="candle"><div class="flame" id="f2"></div></div>
+            <div class="candle"><div class="flame" id="f3"></div></div>
+        </div>
+        <div class="layer top-layer"><span class="cake-text">Happy Birthday</span></div>
+        <div class="layer middle-layer"></div>
+        <div class="layer bottom-layer"></div>
+    </div>
+
+    <div class="lyrics-box hidden" id="lyricsBox">
+        <p class="lyric-line" id="line-0">Happy birthday to you</p>
+        <p class="lyric-line" id="line-1">Happy birthday to youu</p>
+        <p class="lyric-line" id="line-2">Happy birthday, happy birthday</p>
+        <p class="lyric-line" id="line-3">Happy birthday to you..</p>
+    </div>
+
+    <audio id="bdaySong" src="birthday.mp3"></audio>
+
+    <script>
+        const stage = document.getElementById('cakeStage');
+        const instruction = document.getElementById('instruction');
+        const song = document.getElementById('bdaySong');
+        const lyricsBox = document.getElementById('lyricsBox');
+        const flames = [document.getElementById('f1'), document.getElementById('f2'), document.getElementById('f3')];
+        
+        let lastTriggeredIndex = -1;
+        let finaleTriggered = false;
+
+        const lyricsTiming = [
+            { time: 7, id: "line-0" },
+            { time: 11, id: "line-1" },
+            { time: 14, id: "line-2" },
+            { time: 19, id: "line-3" }
+        ];
+
+        function burstFirework() {
+            confetti({
+                particleCount: 100,
+                spread: 70,
+                origin: { y: 0.6 },
+                colors: ['#ff0000', '#ffd700', '#ffffff', '#ff69b4', '#00ced1']
+            });
+        }
+
+        function grandFinale() {
+            const duration = 5 * 1000;
+            const end = Date.now() + duration;
+
+            (function frame() {
+                confetti({ particleCount: 5, angle: 60, spread: 55, origin: { x: 0 }, colors: ['#ff0000', '#ffd700'] });
+                confetti({ particleCount: 5, angle: 120, spread: 55, origin: { x: 1 }, colors: ['#ffffff', '#00ced1'] });
+
+                if (Date.now() < end) {
+                    requestAnimationFrame(frame);
+                }
+            }());
+        }
+
+        instruction.addEventListener('click', () => {
+            instruction.style.display = 'none';
+            stage.classList.add('active');
+
+            setTimeout(() => {
+                flames.forEach(f => f.classList.add('show'));
+                burstFirework();
+            }, 2500);
+
+            setTimeout(() => {
+                song.play();
+                lyricsBox.classList.remove('hidden');
+            }, 4000);
+        });
+
+        song.ontimeupdate = () => {
+            const currentTime = song.currentTime;
+            
+            // Sync Lyrics and trigger fireworks per line
+            lyricsTiming.forEach((item, index) => {
+                const element = document.getElementById(item.id);
+                const nextTime = lyricsTiming[index + 1] ? lyricsTiming[index + 1].time : 999;
+
+                if (currentTime >= item.time && currentTime < nextTime) {
+                    element.classList.add('active');
+                    if (lastTriggeredIndex !== index) {
+                        burstFirework();
+                        lastTriggeredIndex = index;
+                    }
+                } else {
+                    element.classList.remove('active');
+                }
+            });
+
+            // Grand Finale trigger (at 22 seconds)
+            if (currentTime >= 22 && !finaleTriggered) {
+                grandFinale();
+                finaleTriggered = true;
+            }
+        };
+    </script>
+</body>
+</html>
